@@ -1,5 +1,7 @@
 # Claudecode-AnimeVoice
 
+中文 | [English](README.en.md)
+
 面向 Claude Code 的本地日语语音提醒工具。基于 [VOICEVOX](https://voicevox.hiroshiba.jp/)，支持手动合成与播放、按场景选择台词，以及在权限请求时通过 hook 播放提醒。
 
 语音合成在本地完成，无需额外 API Key。输入使用日文，翻译由调用方完成；VOICEVOX 引擎需单独安装。
