@@ -1,10 +1,10 @@
 # Claudecode-AnimeVoice
 
-给 Claude Code 配一副日语音色：需要确认操作时出声喊人，也可以在对话中按需说一句。文字仍是主要交流方式，声音用于提醒，而不是朗读每次回复。
+面向 Claude Code 的本地日语语音提醒工具。基于 [VOICEVOX](https://voicevox.hiroshiba.jp/)，支持手动合成与播放、按场景选择台词，以及在权限请求时通过 hook 播放提醒。
 
-基于 [VOICEVOX](https://voicevox.hiroshiba.jp/)，语音在本地合成。本项目不调用 Claude API，不需要额外 API Key，不包含引擎、声库或模型，也不是 Anthropic 官方项目。
+语音合成在本地完成，无需额外 API Key。输入使用日文，翻译由调用方完成；VOICEVOX 引擎需单独安装。
 
-注意：目前验证环境为 Windows、Python 3.12、VOICEVOX 0.25.2。输入使用日文，程序不负责翻译。使用 CC Switch 等配置切换工具时，请先阅读下面的 hook 配置注意事项，避免设置被覆盖。
+已验证环境：Windows、Python 3.12、VOICEVOX 0.25.2。
 
 ## 快速开始
 
@@ -82,13 +82,11 @@ python ./render_preview.py comeback --out-dir ./_人类工作区
 
 ### CC Switch 等工具可能覆盖设置
 
-本项目使用过程中曾实测：CC Switch 按自己的配置档案重写 `~/.claude/settings.json`，把手工添加的 `hooks` 删除，导致语音提醒静默失效。其他配置切换工具是否覆盖、覆盖哪些文件，应以实际版本和配置为准。
+CC Switch 等配置切换工具可能按配置档案重写用户级 `~/.claude/settings.json`，覆盖手工添加的 hook。
 
-推荐的避开方式：在你实际使用 Claude Code 的工作项目下，将 hook 合并进 `.claude/settings.local.json`。这是项目级的本机设置文件，不是语音仓库专属；你在哪个项目工作，就要在那个项目配置。语音脚本路径仍指向本仓库的绝对路径。
+可将 hook 合并到实际工作项目的 `.claude/settings.local.json`。该设置只对相应项目生效，语音脚本使用指向本仓库的绝对路径。
 
-如果希望所有项目都生效，可以在用户级 `~/.claude/settings.json` 配置，但需要让配置切换工具保留或管理这段 hook，不能假设手工编辑会长期存在。
-
-环境经验：本项目作者的安装曾通过 `~/.claude/settings.local.json` 避开覆盖并成功触发 hook；当前官方 hook 配置位置表未将它列为标准用户级入口。因此不要将这个位置当作通用保证，使用前应确认自己的安装确实加载它。标准项目级 `.claude/settings.local.json` 是优先推荐的方式。
+若需要对所有项目生效，可在用户级 `~/.claude/settings.json` 中配置，并通过切换工具维护或保留这段 hook。
 
 同一 hook 只配置一次。不要同时在用户级、项目级和工具配置档案中重复添加，否则可能重复触发。修改后用真实权限请求确认是否生效；如果会话未加载新设置，再重新启动 Claude Code。
 
@@ -104,13 +102,13 @@ python ./render_preview.py comeback --out-dir ./_人类工作区
 
 ### 权限超时的限制
 
-本项目原验证环境中，权限超时没有触发尝试过的失败事件 hook；工具结果会把 `Permission request timed out` 返回给 Claude。因此超时后的第二次提醒依赖 Claude 主动调用：
+当前示例只配置 `PermissionRequest`。权限超时后的第二次提醒依赖调用方收到 `Permission request timed out` 后主动执行：
 
 ```powershell
 python ./say_timer.py -S missed --cooldown 60
 ```
 
-这不是可靠的自动超时通知，也不保证每次发生。不要把 `PermissionDenied` 当作已验证的通用超时事件。本项目保留相关事件处理供兼容输入使用，但示例只挂已验证的 `PermissionRequest`。
+项目未提供独立的自动超时通知机制。`PermissionDenied` 处理不等同于权限超时事件。
 
 ## 接入 say skill
 
@@ -122,7 +120,7 @@ python ./say_timer.py -S missed --cooldown 60
 
 ## 修改台词和音色
 
-原台词和音色作为示范保留：默认 `47 = ナースロボ＿タイプＴ / ノーマル`，备选 `14 = 冥鳴ひまり`。以当前引擎的 `--speakers` 输出为准。
+默认音色为 `47 = ナースロボ＿タイプＴ / ノーマル`，备选为 `14 = 冥鳴ひまり`。可用 `--speakers` 查询当前引擎支持的音色。
 
 `lines.py` 提供 9 个场景、48 句日语台词：`chatter`、`sit`、`water`、`break`、`late`、`done`、`comeback`、`greet`、`missed`。修改场景内的 `lines` 或 `volume` 即可；修改 `TIMER_POOL` 可以调整未指定场景时的候选池。
 
@@ -145,7 +143,7 @@ python ./say_timer.py -S missed --cooldown 60
 
 `hook_notify.py` 为了不干扰 Claude Code，失败时也返回 0，判断语音是否成功要看日志，而不能只看退出码。日志在子进程返回后写入；暂时没有新日志也可能是仍在合成，或日志目录无法写入。
 
-`_hook.log` 可能包含部分工具响应、错误和消息，分享前检查隐私。运行状态、日志、本机配置、备份和生成音频已通过 `.gitignore` 排除；不要强制添加这些文件。
+`_hook.log` 记录触发事件、处理结果和部分错误信息。分享诊断日志前，应检查其中的工具响应和消息内容。
 
 ## 文件结构
 
