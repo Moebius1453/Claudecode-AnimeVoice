@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+config.local.json
+_say_state.json
+_say.lock
+_hook.log
+_AI工作区/
+_人类工作区/
+.claude/settings.local.json
+*.wav
+experiments/_*.txt
+experiments/_*.json

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Python312/python.exe\" \"D:/Projects/Claudecode-AnimeVoice/hook_notify.py\"",
+            "async": true,
+            "timeout": 120,
+            "statusMessage": "出声提醒确认操作"
+          }
+        ]
+      }
+    ]
+  }
+}
