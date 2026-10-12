@@ -8,6 +8,8 @@ Speech is synthesized locally without an additional API key. Input must be Japan
 
 Verified environment: Windows, Python 3.12, VOICEVOX 0.25.2.
 
+The steps below cover manual playback, hooks, and skill integration. Manual playback and simulated hook input have been verified in that environment. Installation in a separate clean environment and actual hook event delivery remain to be confirmed.
+
 ## Quick start
 
 1. Install Python 3.10 or later.
