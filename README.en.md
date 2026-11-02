@@ -2,13 +2,13 @@
 
 [中文](README.md) | English
 
-A local Japanese voice notification tool for Claude Code, powered by [VOICEVOX](https://voicevox.hiroshiba.jp/). It supports speech synthesis and playback, scenario-based phrases, and hook-triggered reminders when permission is requested.
+A local Japanese voice tool for Claude Code, powered by [VOICEVOX](https://voicevox.hiroshiba.jp/). It supports manual playback, scenario phrases, permission reminders, and chatter after tool calls.
 
 Speech is synthesized locally without an additional API key. Input must be Japanese; translation is handled by the caller. Install the VOICEVOX engine separately.
 
 Verified environment: Windows, Python 3.12, VOICEVOX 0.25.2.
 
-The steps below cover manual playback, hooks, and skill integration. Manual playback and simulated hook input have been verified in that environment. Installation in a separate clean environment and actual hook event delivery remain to be confirmed.
+Manual playback and simulated hook input have been verified in that environment. Confirm installation and actual hook delivery in your deployment environment.
 
 ## Quick start
 
@@ -74,45 +74,46 @@ Preview rendering uses `--keep-engine` for batch synthesis and leaves the engine
 
 ## Claude Code hook integration
 
-When a permission dialog appears, Claude is waiting for approval and cannot execute another command to notify the user. A `PermissionRequest` hook is executed by Claude Code and can play a reminder at that point.
+[hooks.example.json](hooks.example.json) includes two events:
 
-See [hooks.example.json](hooks.example.json). Replace the Python and script paths with absolute paths on your machine, then merge the hook into the existing configuration. Do not replace the entire settings file or remove other hooks.
+| Event | Trigger | Scenario | Cooldown |
+|---|---|---|---|
+| `PermissionRequest` | A tool requests permission | `comeback` | 30 seconds |
+| `PostToolUse` | `PowerShell`, `Edit`, `Write`, or `Bash` completes successfully | `chatter` | 300 seconds |
 
-The example uses:
+Each scenario has an independent cooldown. Chatter plays after matching tool calls, not on a 300-second timer, so speech remains available when permission requests are infrequent. Keep only `PermissionRequest` if you only need permission reminders.
 
-- `PermissionRequest`: the `comeback` scenario with a 30-second cooldown.
-- `async: true`: playback does not block the permission workflow. The script does not approve or deny requests.
-- Separately quoted Python and script paths to support spaces.
+The `PostToolUse` matcher is `PowerShell|Edit|Write|Bash`. Adjust it to match the tools in use. The example excludes high-frequency tools such as `Read` and `Grep`.
 
-### Configuration switching tools
+### Configuration
 
-CC Switch and similar tools may rewrite user-level `~/.claude/settings.json` from their configuration profiles, overwriting manually added hooks.
+Replace the Python and script paths with absolute paths on your machine, keeping each path quoted. Back up the settings file, then merge the events into its existing `hooks` without replacing other settings. The example uses `async: true` so playback does not block tool execution.
 
-One option is to merge the hook into `.claude/settings.local.json` in the project where Claude Code is used. This configuration applies only to that project; the script path points to this repository using an absolute path.
+- Current project: use that project's `.claude/settings.local.json`. It applies only to that project.
+- All projects: use `~/.claude/settings.json`. When using CC Switch or another configuration switching tool, maintain or preserve the hooks in its profile.
 
-For all projects, configure user-level `~/.claude/settings.json` and ensure the switching tool preserves or manages the hook.
+Register each event once to avoid duplicate playback across scopes. Restart Claude Code after changing hook settings, then confirm integration with a real permission request and a matching tool call.
 
-Configure the hook only once to avoid duplicate playback across scopes. Confirm integration with a real permission request. Restart Claude Code if the session has not loaded the new settings.
-
-### Test the script without installing a hook
+### Simulated input
 
 From the repository root:
 
 ```powershell
 '{"hook_event_name":"PermissionRequest","tool_name":"Bash"}' | python ./hook_notify.py
+'{"hook_event_name":"PostToolUse","tool_name":"Edit"}' | python ./hook_notify.py
 ```
 
-This simulates the input and plays a reminder without modifying Claude Code settings. Check `_hook.log` afterward. Repeated calls during the cooldown may be skipped. This verifies the script's input and playback path, not actual event delivery by Claude Code.
+Simulated input plays the corresponding scenario unless its cooldown is active. Results are written to `_hook.log`. This does not verify actual event delivery by Claude Code.
 
-### Permission timeout handling
+### Permission timeouts
 
-The example configures only `PermissionRequest`. A second reminder after a timeout depends on the caller receiving `Permission request timed out` and invoking:
+A timeout reminder requires the caller to receive `Permission request timed out` and run:
 
 ```powershell
 python ./say_timer.py -S missed --cooldown 60
 ```
 
-The project does not provide an independent automatic timeout notifier. Handling `PermissionDenied` is not equivalent to receiving a permission timeout event.
+The example does not configure automatic timeout notifications. Handling `PermissionDenied` is not equivalent to receiving a permission timeout event.
 
 ## Install the say skill
 
@@ -147,7 +148,7 @@ Changes to phrases, voices, and cooldowns take effect on the next script invocat
 
 `hook_notify.py` returns 0 even on failures to avoid disrupting Claude Code. Use the log rather than the exit code to diagnose playback. Logging occurs after the child process returns; a missing new entry may also mean synthesis is still running or the log directory is not writable.
 
-`_hook.log` records events, results, and some error details. Review tool responses and message content before sharing diagnostic logs.
+`_hook.log` records events, tool names, results, and some messages and errors. It omits `tool_input` and `tool_response`. Review message and error fields before sharing logs.
 
 ## File structure
 

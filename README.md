@@ -2,13 +2,13 @@
 
 中文 | [English](README.en.md)
 
-面向 Claude Code 的本地日语语音提醒工具。基于 [VOICEVOX](https://voicevox.hiroshiba.jp/)，支持手动合成与播放、按场景选择台词，以及在权限请求时通过 hook 播放提醒。
+面向 Claude Code 的本地日语语音工具。基于 [VOICEVOX](https://voicevox.hiroshiba.jp/)，支持手动播放、场景台词、权限提醒和工具完成后的碎碎念。
 
 语音合成在本地完成，无需额外 API Key。输入使用日文，翻译由调用方完成；VOICEVOX 引擎需单独安装。
 
 已验证环境：Windows、Python 3.12、VOICEVOX 0.25.2。
 
-以下步骤覆盖手动播放、hook 和 skill 接入。手动播放与模拟 hook 已在上述环境验证，独立干净环境安装及真实 hook 事件接入仍需确认。
+手动播放与模拟 hook 已在上述环境验证。独立环境安装和真实 hook 接入需在部署时确认。
 
 ## 快速开始
 
@@ -74,45 +74,46 @@ python ./render_preview.py comeback --out-dir ./_人类工作区
 
 ## 接入 Claude Code hook
 
-权限提示弹出时，Claude 正在等待授权，不能再执行命令喊人。`PermissionRequest` hook 由 Claude Code 执行，可以在这个时刻调用语音脚本。
+[hooks.example.json](hooks.example.json) 包含两个事件：
 
-示例见 [hooks.example.json](hooks.example.json)。将其中的 Python 和项目路径替换为本机绝对路径，再合并到配置文件已有的 `hooks` 中。不要拿示例覆盖整份设置，也不要覆盖已有其他事件的 hook。
+| 事件 | 触发条件 | 场景 | 冷却 |
+|---|---|---|---|
+| `PermissionRequest` | 请求操作权限 | `comeback` | 30 秒 |
+| `PostToolUse` | `PowerShell`、`Edit`、`Write`、`Bash` 执行成功 | `chatter` | 300 秒 |
 
-示例配置采用：
+两个场景独立冷却。碎碎念在匹配的工具完成后触发，不是每 300 秒定时播放；权限请求较少时仍可出声。只需要权限提醒时，保留 `PermissionRequest` 即可。
 
-- `PermissionRequest`：调用 `comeback` 场景，冷却 30 秒。
-- `async: true`：不等待音频播完；本项目不输出批准或拒绝决定，不改变权限判断。
-- Python 和脚本路径分别加引号，支持路径中的空格。
+`PostToolUse` 的 `matcher` 为 `PowerShell|Edit|Write|Bash`。可按实际工具名调整；示例不包含调用频繁的 `Read` 和 `Grep`。
 
-### CC Switch 等工具可能覆盖设置
+### 配置
 
-CC Switch 等配置切换工具可能按配置档案重写用户级 `~/.claude/settings.json`，覆盖手工添加的 hook。
+将示例中的 Python 和脚本路径改为本机绝对路径，分别保留引号。备份设置文件后，将事件合并到已有的 `hooks` 中，保留其他配置。示例使用 `async: true`，播放不阻塞工具流程。
 
-可将 hook 合并到实际工作项目的 `.claude/settings.local.json`。该设置只对相应项目生效，语音脚本使用指向本仓库的绝对路径。
+- 当前项目：使用该项目的 `.claude/settings.local.json`，只对该项目生效。
+- 所有项目：使用 `~/.claude/settings.json`。使用 CC Switch 等配置切换工具时，在其配置档案中维护或保留这段 hook。
 
-若需要对所有项目生效，可在用户级 `~/.claude/settings.json` 中配置，并通过切换工具维护或保留这段 hook。
+同一事件只注册一次，避免跨作用域重复播放。修改 hook 配置后重启 Claude Code，并用真实权限请求和匹配的工具调用确认接入。
 
-同一 hook 只配置一次。不要同时在用户级、项目级和工具配置档案中重复添加，否则可能重复触发。修改后用真实权限请求确认是否生效；如果会话未加载新设置，再重新启动 Claude Code。
+### 模拟输入
 
-### 不改设置也能测试脚本
-
-在仓库根目录执行下面的命令，会模拟权限请求输入并喊一句，不安装 hook、不修改 Claude Code 设置：
+在仓库根目录执行：
 
 ```powershell
 '{"hook_event_name":"PermissionRequest","tool_name":"Bash"}' | python ./hook_notify.py
+'{"hook_event_name":"PostToolUse","tool_name":"Edit"}' | python ./hook_notify.py
 ```
 
-随后查看 `_hook.log`。冷却期内再次执行可能静默跳过。模拟测试只能证明脚本接收输入、合成和播放链路可运行；实际事件是否触发，需要在接入配置后另外确认。
+模拟输入会播放对应场景，冷却期内跳过。结果写入 `_hook.log`；模拟输入不验证 Claude Code 的真实事件接入。
 
-### 权限超时的限制
+### 权限超时
 
-当前示例只配置 `PermissionRequest`。权限超时后的第二次提醒依赖调用方收到 `Permission request timed out` 后主动执行：
+权限超时提醒依赖调用方收到 `Permission request timed out` 后执行：
 
 ```powershell
 python ./say_timer.py -S missed --cooldown 60
 ```
 
-项目未提供独立的自动超时通知机制。`PermissionDenied` 处理不等同于权限超时事件。
+示例未配置自动超时通知。`PermissionDenied` 处理不等同于权限超时事件。
 
 ## 接入 say skill
 
@@ -147,7 +148,7 @@ python ./say_timer.py -S missed --cooldown 60
 
 `hook_notify.py` 为了不干扰 Claude Code，失败时也返回 0，判断语音是否成功要看日志，而不能只看退出码。日志在子进程返回后写入；暂时没有新日志也可能是仍在合成，或日志目录无法写入。
 
-`_hook.log` 记录触发事件、处理结果和部分错误信息。分享诊断日志前，应检查其中的工具响应和消息内容。
+`_hook.log` 记录事件、工具名、处理结果及部分消息和错误，不记录 `tool_input` 或 `tool_response`。分享前检查消息和错误字段。
 
 ## 文件结构
 
